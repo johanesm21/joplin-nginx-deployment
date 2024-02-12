@@ -1,0 +1,83 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: joplin_environment
+data:
+  APP_BASE_URL: https://joplin.local:5555
+  APP_PORT: 1025
+  DB_CLIENT: pg
+  POSTGRES_PASSWORD: <YOUR_JOPLIN_PASSWORD>
+  POSTGRES_DATABASE: joplin
+  POSTGRES_USER: joplin
+  POSTGRES_PORT: 5432
+  POSTGRES_HOST: <YOUR_SERVER_IP>
+  MAX_TIME_DRIFT: 0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres_environment
+data:
+  POSTGRES_PASSWORD: <YOUR_JOPLIN_PASSWORD>
+  POSTGRES_USER: joplin
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: joplin
+  name: joplin
+spec:
+  containers:
+    - name: postgres
+      image: postgres:latest
+      ports:
+        - containerPort: 5432
+          hostPort: 5432
+      volumeMounts:
+        - mountPath: /var/lib/postgresql/data:Z
+          name: postgre_data
+      envFrom:
+        - configMapRef:
+            name: postgres_environment
+          resources: {}
+    - name: server
+      image: joplin/server:latest
+      ports:
+        - containerPort: 1025
+          hostPort: 1025
+      volumeMounts:
+        - mountPath: /etc/localtime:Z
+          name: joplin_timezone
+      envFrom:
+        - configMapRef:
+            name: joplin_environment
+      resources: {}
+    - name: nginx
+      image: nginx:latest
+      ports:
+        - containerPort: 5555
+          hostPort: 5555
+      volumeMounts:
+        - mountPath: /etc/nginx/conf.d/joplin.conf:Z
+          name: nginx_configuration
+        - mountPath: /etc/ssl/certs/:Z
+          name: nginx_ssl_certificates
+  volumes:
+    - name: postgre_data
+      hostPath:
+        path: ~/joplin/postgres/data
+        type: Directory
+    - name: joplin_timezone
+      hostPath:
+        Path: /etc/localtime
+        type: File
+    - name: nginx_configuration
+      hostPath:
+        Path: ~/joplin/nginx/nginx.conf
+        type: File
+    - name: nginx_ssl_certificates
+      hostPath:
+        Path: ~/joplin/nginx/certs/
+        type: Directory
